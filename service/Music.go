@@ -5,6 +5,7 @@ import (
 	"fmt"
 	uuid "github.com/satori/go.uuid"
 	"github.com/shopspring/decimal"
+	"math/rand"
 	"music/model"
 	"music/utils"
 	"os"
@@ -106,7 +107,17 @@ func(m *KugouMusicService) GetMusicIdList(username string) int {
 
 	if len(kugouMusic.Data.List) > 0 {
 		for _, v := range kugouMusic.Data.List {
-			m.ChanMusicId <- &model.ChanMusicId{Name: v.Name , Id: v.Rid}
+			abId := 0
+			switch v.Albumid.(type) {
+			case string:
+				n := v.Albumid.(string)
+				abId, _ = strconv.Atoi(n)
+			case int :
+				abId = v.Albumid.(int)
+			}
+			if v.Hasmv == 1 && abId >  0 && v.Album != "" && v.Haslossless && v.Originalsongtype == 1  {
+				m.ChanMusicId <- &model.ChanMusicId{Name: v.Name , Id: v.Rid}
+			}
 		}
 	}
 
@@ -134,7 +145,17 @@ func(m *KugouMusicService) GetMusicIdList(username string) int {
 
 			if len(kugouMusic.Data.List) > 0 {
 				for _, v := range kugouMusic.Data.List {
-					m.ChanMusicId <- &model.ChanMusicId{Name: v.Name , Id: v.Rid}
+					abId := 0
+					switch v.Albumid.(type) {
+					case string:
+						n := v.Albumid.(string)
+						abId, _ = strconv.Atoi(n)
+					case int :
+						abId = v.Albumid.(int)
+					}
+					if abId > 0 && v.Album != "" && v.Haslossless && v.Hasmv == 1  && v.Originalsongtype == 1 {
+						m.ChanMusicId <- &model.ChanMusicId{Name: v.Name , Id: v.Rid}
+					}
 				}
 				break
 			}
@@ -152,71 +173,62 @@ func(m *KugouMusicService) ProductMusicUrl(username string, musicDir string, wg 
 		 wg.Done()
 	}()
 
-	isStopChan := make(chan struct{})
-	var once sync.Once
+	var wg2 sync.WaitGroup
+	wg2.Add(m.ProductThreadNum)
 	wg.Add(1)
+
 	go func() {
-		defer  wg.Done()
-		t1 := time.NewTimer(time.Second * 3)
-		for {
-			select {
-				case <- isStopChan:
-					close(m.ChanMusic)
-					close(isStopChan)
-					return
-				case <- t1.C:
-			}
-		}
-	}()
-
-	for i := 0; i< m.ProductThreadNum; i++ {
-		wg.Add(1)
-		go func() {
-			for {
-				if music,  ok :=  <- m.ChanMusicId; ok {
-					if len(music.Name) > 30 {
-						continue
-					}
-
-					music.Name = utils.FilterStr(music.Name, username)
-					sep := string(os.PathSeparator)
-					filePath := musicDir + sep + music.Name +".mp3"
-					isExist, _ := utils.FileExists(filePath)
-					if isExist {
-						fmt.Printf("音乐名称:%s，已经下载过了\n", music.Name)
-						continue
-					}
-
-					s := strings.ToLower(music.Name)
-					var isFilter bool
-					filterStrList := []string{"live", "cover", "+"}
-					for _, filterStr := range filterStrList {
-						if strings.Contains(s,filterStr) {
-							isFilter = true
-							break
+		for i := 0; i< m.ProductThreadNum; i++ {
+			go func() {
+				for {
+					if music,  ok :=  <- m.ChanMusicId; ok {
+						if len(music.Name) > 30 {
+							continue
 						}
-					}
-					if isFilter {
-						continue
-					}
 
-					url := m.GetMusicDownUrl(music.Id)
-					if len(url) > 0 {
-						m.ChanMusic <- &model.ChanMusic{Name: music.Name, Url: url}
+						music.Name = utils.FilterStr(music.Name, username)
+						sep := string(os.PathSeparator)
+						filePath := musicDir + sep + music.Name +".mp3"
+						isExist, _ := utils.FileExists(filePath)
+						if isExist {
+							fmt.Printf("音乐名称:%s，已经下载过了\n", music.Name)
+							continue
+						}
+
+						s := strings.ToLower(music.Name)
+						var isFilter bool
+						filterStrList := []string{"live", "cover", "+", "(", ")","[", "]", "《", "》", "花絮", "）", "演唱会"}
+						for _, filterStr := range filterStrList {
+							if strings.Contains(s,filterStr) {
+								isFilter = true
+								break
+							}
+						}
+						if isFilter {
+							continue
+						}
+
+						url := m.GetMusicDownUrl(music.Id)
+						if len(url) > 0 {
+							m.ChanMusic <- &model.ChanMusic{Name: music.Name, Url: url}
+						}
+						rand.Seed(time.Now().UnixNano())
+						if rand.Intn(100) > 50 {
+							time.Sleep(time.Second*time.Duration(1))
+						}
+
+					} else {
+						break
 					}
-
-					time.Sleep(time.Second*time.Duration(1))
-
-				} else {
-					once.Do(func() {
-						isStopChan <- struct{}{}
-					})
-					break
 				}
-			}
-			wg.Done()
-		}()
-	}
+				wg2.Done()
+			}()
+		}
+
+		wg2.Wait()
+		wg.Done()
+		close(m.ChanMusic)
+	}()
 }
 
 func(m *KugouMusicService) DownMusic(musicDir string, wg *sync.WaitGroup  ) {
@@ -240,8 +252,6 @@ func(m *KugouMusicService) DownMusic(musicDir string, wg *sync.WaitGroup  ) {
 							time.Sleep(time.Second*time.Duration(1))
 							break
 						}
-
-						time.Sleep(time.Second*time.Duration(1))
 					}
 
 				} else {

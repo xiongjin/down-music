@@ -37,6 +37,11 @@ type Payinfo struct {
 	Feetype          Feetype `json:"feeType"`
 	Down             string  `json:"down"`
 }
+
+
+
+
+
 type List struct {
 	Musicrid         string    `json:"musicrid"`
 	Barrage          string    `json:"barrage"`
@@ -52,6 +57,7 @@ type List struct {
 	Hasmv            int       `json:"hasmv"`
 	Releasedate      string    `json:"releaseDate"`
 	Album            string    `json:"album"`
+	Albumid          interface{}    `json:"albumid"`
 	Pay              string    `json:"pay"`
 	Artistid         int       `json:"artistid"`
 	Albumpic         string    `json:"albumpic"`
@@ -66,6 +72,20 @@ type Data struct {
 	Total int `json:"total"`
 	List  []List `json:"list"`
 }
+
+/*
+type Albumid int
+
+func(ab *Albumid ) UnmarshalJSON(b []byte) error {
+	str := string(b)
+	num, err := strconv.Atoi(str)
+	if err != nil {
+		return err
+	}
+	*ab = Albumid(num)
+	return nil
+
+}*/
 
 func (k *MusicData) UnmarshalJSON(b []byte) error {
 	regStr := "\"total\":([\\w+\"]+)"
