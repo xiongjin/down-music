@@ -59,12 +59,7 @@ func NewBrowser() *Browser {
 
 	//为所有重定向的请求增加cookie
 	hc.client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
-		if len(via) > 0 {
-			for _,v := range hc.GetCookie() {
-				req.AddCookie(v)
-			}
-		}
-		return nil
+		return http.ErrUseLastResponse
 	}
 	//hc.client.Jar, _ = cookiejar.New(nil)
 	return hc
@@ -118,6 +113,39 @@ func (self *Browser) Get(requestUrl string) ([]byte, int) {
 	data, _ := ioutil.ReadAll(response.Body)
 
 	return data, response.StatusCode
+}
+
+//发送Get请求
+func (self *Browser) GetLocationUrl(requestUrl string) (string, int) {
+	defer func() {
+		if r := recover(); r != nil {
+			fmt.Println(r)
+		}
+	}()
+
+	var locationUrl string
+	request, _ := http.NewRequest("GET", requestUrl, nil)
+	self.setRequestCookie(request)
+	self.setRequestHeader(request)
+	response,err := self.client.Do(request)
+	defer response.Body.Close()
+
+	Redirect:
+ 	if response.StatusCode == 302 {
+		locationUrl = response.Header.Get("location")
+		if len(locationUrl) > 0 {
+			request, _ := http.NewRequest("GET", locationUrl, nil)
+			response,_ = self.client.Do(request)
+			goto Redirect
+		}
+
+	}
+
+	if err != nil {
+		return "", response.StatusCode
+	}
+
+	return locationUrl, response.StatusCode
 }
 
 //发送Post请求

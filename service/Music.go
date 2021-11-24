@@ -167,7 +167,7 @@ func(m *KugouMusicService) GetMusicIdList(username string) int {
 }
 
 func(m *KugouMusicService) ProductMusicUrl(username string, musicDir string, wg *sync.WaitGroup) {
-	wg.Add(1)
+	wg.Add(2)
 	go func() {
 		 m.GetMusicIdList(username)
 		 wg.Done()
@@ -175,7 +175,6 @@ func(m *KugouMusicService) ProductMusicUrl(username string, musicDir string, wg 
 
 	var wg2 sync.WaitGroup
 	wg2.Add(m.ProductThreadNum)
-	wg.Add(1)
 
 	go func() {
 		for i := 0; i< m.ProductThreadNum; i++ {
@@ -265,26 +264,18 @@ func(m *KugouMusicService) DownMusic(musicDir string, wg *sync.WaitGroup  ) {
 
 func(m *KugouMusicService) GetMusicDownUrl(musicId int) string {
 	var url string
+	var code  int
 
 	for tryNum := 0; tryNum <= 2; tryNum++ {
-		baseUrl := "http://api.4dn.net/kuwo/kw.php?id="+strconv.Itoa(musicId)+"&km=320"
+		baseUrl := "http://api.4dn.net/kuwo/kw.php?id="+strconv.Itoa(musicId)+"&type=down"
 		req := utils.NewBrowser()
-		str, code := req.Get(baseUrl)
-		if len(str) == 0  || code != 200 {
+		url, code = req.GetLocationUrl(baseUrl)
+		if len(url) == 0  || code != 302 {
 			continue
 		}
-
-		var musicUrl model.MusicUrl
-		if err := json.Unmarshal(str, &musicUrl); err != nil {
-			continue
-		}
-
-		if len(musicUrl.URL) > 0 {
-			url = musicUrl.URL
-		}
-
 		break
 	}
+
 	return  url
 }
 

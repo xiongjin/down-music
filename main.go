@@ -35,7 +35,7 @@ func main()  {
 				return
 			}
 
-		    var consumeThreadNum = 3
+		    var consumeThreadNum = 10
 		    var productThreadNum = 5
 			chanMusic := make(chan *model.ChanMusic, 30)
 			chanMusicId := make(chan *model.ChanMusicId, 30)
